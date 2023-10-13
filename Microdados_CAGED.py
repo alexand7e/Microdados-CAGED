@@ -3,8 +3,10 @@ import pandas as pd
 import numpy as np
 import os
 
-# caminho local para os microdados
-file_path = "C:/Users/Alexandre/OneDrive/Documentos/R/Projeto CAGED/Files - Microdata/"
+# caminho local para leitura os microdados
+file_path_micro = "C:/Users/Alexandre/OneDrive/Documentos/R/Projeto CAGED/Files - Microdata/"
+# caminho local para salvar os dados (e ler as dimensões)
+file_path = "./Tabelas/"
 # mês de referência para a importação das bases
 mes_atual = 8
 # dataframe para inserir as tabelas dimensões
@@ -121,7 +123,7 @@ def importar_histórico_caged(anos_base = ["2023"],
             for mes in range(1, mes_referencia):
                 filename = f"CAGED{type}{ano}{str(mes).zfill(2)}.txt"
 
-                caged = pd.read_table(os.path.join(file_path, filename),
+                caged = pd.read_table(os.path.join(file_path_micro, filename),
                                       sep=";",
                                       decimal=",")
                 
@@ -156,7 +158,7 @@ def importar_caged_mes(anos_base=["2023"], ultimo_mes=8):
             filename = f"CAGED{type}{ano}{str(mes_referencia).zfill(2)}.txt"
 
             # Importação do arquivo .txt
-            caged = pd.read_table(os.path.join(file_path, filename),
+            caged = pd.read_table(os.path.join(file_path_micro, filename),
                                   sep=";",
                                   decimal=",").query("uf == @piaui")
 
