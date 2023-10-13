@@ -18,18 +18,19 @@ Para começar a utilizar este repositório, siga as etapas abaixo:
 
 1. Clone este repositório para o seu ambiente local:
 
- # git clone https://github.com/AlexandreDevSK/Microdados-CAGED
+ **git clone https://github.com/AlexandreDevSK/Microdados-CAGED**
 
-4. Certifique-se de que você tenha as dependências necessárias instaladas. Você pode fazer isso executando:
+2. Certifique-se de que você tenha as dependências necessárias instaladas. Você pode fazer isso executando:
 
- # pip install -r requirements.txt
+ **pip install -r requirements.txt**
 
+3. Certifique-se também de alterar as variáveis que determinam o diretório de importação e exportação dos dados.
+ 
+4. Execute o arquivo `FTP_caged.py` para baixar os microdados do servidor FTP do governo. Você pode configurar as opções e parâmetros necessários no arquivo.
 
-3. Execute o arquivo `FTP_caged.py` para baixar os microdados do servidor FTP do governo. Você pode configurar as opções e parâmetros necessários no arquivo.
+5. Use o arquivo `microdados_caged.py` para ler e formatar os dados conforme necessário. Consulte a documentação das funções neste arquivo para obter mais detalhes.
 
-4. Use o arquivo `microdados_caged.py` para ler e formatar os dados conforme necessário. Consulte a documentação das funções neste arquivo para obter mais detalhes.
-
-5. Utilize o arquivo `notebook.ipynb` para realizar análises e visualizações de dados com os dados processados.
+6. Utilize o arquivo `notebook.ipynb` para realizar análises e visualizações de dados com os dados processados.
 
 ## Contribuições
 
