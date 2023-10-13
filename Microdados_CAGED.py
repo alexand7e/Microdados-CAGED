@@ -85,10 +85,9 @@ def custom_mean(x):
 # função para importar as bases (parâmetros fechados)
 def importar_dimensoes():
     filename = ""
+    
     # retirando o último elemento da lista ~ que não é uma dimensão
-    pagess = pages[:-1]
-
-    for pagename in pagess:
+    for pagename in pages[:-1]:
         if pagename == "município":
             filename = os.path.join(file_path, "dimensao_municipios.xlsx")
         else:
