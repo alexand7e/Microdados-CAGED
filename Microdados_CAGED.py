@@ -1,4 +1,5 @@
 # Dependências
+from decimal import Decimal
 import pandas as pd
 import numpy as np
 import os
@@ -17,7 +18,18 @@ pages = ["município", "subclasse", "graudeinstrução", "faixaetária", "raçac
 piaui = 22
 
 
-#...
+"""
+NOTA: uma importante atualização foi inserida
+Considerando que as bases FOR (dados informados fora de prazo) e EXC (exclusões em competências passadas)
+alteram os meses anteriores, a importação e análise desses mesmos meses necessitam de considerar esses dados.
+Sabendo disso, a função 'importar_caged_mes_ano' agora realiza as seguintes operações: 
+
+- Verifica os meses e anos posteriores ao período analisado, a fim de ajustar os dados;
+- Verifica o ano/mes de referência e importa a base MOV da competência;
+- Importa as bases EXC e FOR apenas para os meses seguintes à competência da análise;
+
+Para tanto, incluiu-se as novas funções 'mes_analisado', 'ano_analisado' e 'importar_caged_tipo' (uma desagregação da função anterior).
+"""
 
 
 # Função para classificar a faixa etária com base na idade
@@ -48,39 +60,46 @@ def classificar_faixa_etaria(idade):
 def classificar_período(data):
     return f'{data[:4]}-{data[-2:]}-01'
 
+
+
 # Função para calcular a soma segura ~ verificando o tipo dos dados
 def custom_sum(x):
-    def convert_to_float(s):
-        try:
-            return float(s.replace(',', '.'))
-        except ValueError:
-            return np.nan
-
-    numeric_values = [convert_to_float(val) for val in x if pd.notna(val)]
+    numeric_values = [val for val in x if pd.notna(val) and isinstance(val, (int, float))]
 
     if numeric_values:
         return round(sum(numeric_values), 2)  # Calcula a soma
     else:
         return np.nan
-    
 
 # Função para calcular a média segura
 def custom_mean(x):
-    def convert_to_float(s):
-        try:
-            return float(s.replace(',', '.'))
-        except ValueError:
-            return np.nan  # Retorna NaN em caso de erro de conversão
-
-    numeric_values = [convert_to_float(val) for val in x if pd.notna(val)]
+    numeric_values = [val for val in x if pd.notna(val) and isinstance(val, (int, float))]
 
     if numeric_values:
-        mean_value = np.nanmean(numeric_values)
+        mean_value = Decimal(np.nanmean(numeric_values))
         return round(mean_value, 2)  # Calcula a média
     else:
-        return np.nan  # Retorna NaN se não tiver valores numéricos
+        return np.nan
 
+
+#
+def mes_analisado(mes_escolhido, ano_base):
+    meses = list(range(1, 13))
+    if 1 <= mes_escolhido <= 12:
+        # Se o ano for '2023', isto limita a lista de meses até o último mês disponível - 'mes_atual'
+        if ano_base == 2023:
+            meses_selecionados = meses[mes_escolhido - 1:mes_atual]
+        else:
+            meses_selecionados = meses[mes_escolhido - 1:]
+    return meses_selecionados
+
+#
+def ano_analisado(ano_base):
+    anos = [2020, 2021, 2022, 2023]
+    i_ano = anos.index(ano_base)
     
+    return anos[i_ano:]
+
 
 # função para importar as bases (parâmetros fechados)
 def importar_dimensoes():
@@ -135,44 +154,44 @@ def importar_histórico_caged(anos_base = ["2023"],
     return caged_base
 
 
-# Função para importar o caged para o mês espefícico 
-def importar_caged_mes(anos_base=["2023"], ultimo_mes=8):
-    caged_base = []
+# Função para importar dados do CAGED de um determinado tipo
+def importar_caged_tipo(ano, mes, tipo):
+    filename = f"CAGED{tipo}{ano}{str(mes).zfill(2)}.txt"
 
-    período = f'2023-{str(ultimo_mes).zfill(2)}-01'
-    anos_base = anos_base
-    mes_referencia = ultimo_mes
+    caged = pd.read_table(os.path.join(file_path_micro, filename),
+                          sep=";",
+                          decimal=",").query("uf == @piaui")
+
+    # Realize os ajustes necessários nas colunas
+    caged['competênciamov'] = caged['competênciamov'].astype(str)
+    caged['faixaetária'] = caged['idade'].apply(classificar_faixa_etaria)
+    caged['Período'] = caged["competênciamov"].apply(classificar_período)
+
+    # Se o tipo for 'EXC', inverta o sinal de 'saldomovimentação'
+    if tipo == "EXC":
+        caged['saldomovimentação'] = -caged['saldomovimentação']
+
+    return caged
+
+
+# Função para importar dados do CAGED para um mês e ano específico
+def importar_caged_mes_ano(ano_base=2023, mes_base=8):
+    caged_base = []  # Lista para armazenar os valores no loop
+    result = {}
+    período = f'{ano_base}-{str(mes_base).zfill(2)}-01'
+
     bases = ["MOV", "EXC", "FOR"]
 
-    # Dicionário para armazenar DataFrames por dimensão
-    result = {}  
-
-    # Loop inicial - tipo das bases
-    for type in bases:
-
-        # Loop para os anos
-        for ano in anos_base:
-
-            # Nome do arquivo final
-            filename = f"CAGED{type}{ano}{str(mes_referencia).zfill(2)}.txt"
-
-            # Importação do arquivo .txt
-            caged = pd.read_table(os.path.join(file_path_micro, filename),
-                                  sep=";",
-                                  decimal=",").query("uf == @piaui")
-
-            # Alguns ajustes das variáveis
-            caged['competênciamov'] = caged['competênciamov'].astype(str)
-            caged['faixaetária'] = caged['idade'].apply(classificar_faixa_etaria)
-            caged['Período'] = caged["competênciamov"].apply(classificar_período)
-
-            # A base de 'exclusões' entra negativo na série
-            if type == "EXC":
-                caged['saldomovimentação'] = -caged['saldomovimentação']
-
-            # Inserindo os dados no dicionário que criamos
-            caged_base.append(caged)
-
+    for tipo in bases:
+        for ano in ano_analisado(ano_base):
+            for mes in mes_analisado(mes_base, ano_base):
+                # Verifique se o tipo 'MOV' deve ser importado
+                if ano == int(ano_base) and mes == int(mes_base) and tipo == "MOV":
+                    caged = importar_caged_tipo(ano, mes, tipo)
+                    caged_base.append(caged)
+                elif tipo in ["EXC", "FOR"]:
+                    caged = importar_caged_tipo(ano, mes, tipo)
+                    caged_base.append(caged)
 
     # Loop para o agrupamento dos dados conforme a dimensão
     for categoria in pages[:-1]:
@@ -195,6 +214,66 @@ def importar_caged_mes(anos_base=["2023"], ultimo_mes=8):
     return pd.concat(caged_base), result
 
 
+# Função para importar o caged para o mês espefícico 
+def salvar(ano_base="2023", mes_base=8):
+    caged_base = [] # lista para armazenarmos os valores no loop
+
+    período = f'{ano_base}-{str(mes_base).zfill(2)}-01'
+    mes_referencia = mes_base
+    bases = ["MOV", "EXC", "FOR"]
+
+    # Dicionário para armazenar DataFrames por dimensão
+    result = {}  
+
+    # Loop inicial - tipo das bases
+    for type in bases:
+
+        # Loop para os anos
+        for ano in ano_analisado(ano_base):
+
+            # Loop para os meses
+            for mes in mes_analisado(mes_base, ano_base):
+
+                # Nome do arquivo final
+                filename = f"CAGED{type}{ano}{str(mes).zfill(2)}.txt"
+
+                # Importação do arquivo .txt
+                caged = pd.read_table(os.path.join(file_path_micro, filename),
+                                    sep=";",
+                                    decimal=",").query("uf == @piaui")
+
+                # Alguns ajustes das variáveis
+                caged['competênciamov'] = caged['competênciamov'].astype(str)
+                caged['faixaetária'] = caged['idade'].apply(classificar_faixa_etaria)
+                caged['Período'] = caged["competênciamov"].apply(classificar_período)
+
+                # A base de 'exclusões' entra negativo na série
+                if type == "EXC":
+                    caged['saldomovimentação'] = -caged['saldomovimentação']
+
+                # Inserindo os dados no dicionário que criamos
+                caged_base.append(caged)
+
+
+    # Loop para o agrupamento dos dados conforme a dimensão
+    for categoria in pages[:-1]:
+        caged_with_base = pd.concat(caged_base, ignore_index=True).query("Período == @período")  # cópia do DataFrame caged
+
+        # summarização dos dados, conforme período e a categoria 'page'
+        grupo = caged_with_base.groupby(['Período', categoria]).agg(
+            Desligamentos=('saldomovimentação', lambda x: (x == -1).sum()),
+            Admissões=('saldomovimentação', lambda x: (x == 1).sum()),
+            Salario_medio = ('salário', custom_mean)
+        )
+
+        # Variável de saldo do caged
+        grupo['Saldo'] = grupo['Admissões'] - grupo['Desligamentos']
+
+        # Certificando de criar o dicionário de data.frames
+        if categoria not in result:
+            result[categoria] = grupo  #~ 'result' é nosso dicionário de df's final agrupado
+
+    return pd.concat(caged_base), result
 
 # calculo inicial usando agrupamentos simples (município e subclasse)
 def formatar_tabelas_caged(df, dimensao):
@@ -252,21 +331,24 @@ def consolidar_caged(caged_agrupado, caged_dimensoes):
         print(f"Erro inesperado: {e}")
 
 
-# Função para analisar os salários desagregador por município
-def analisar_salarios(df_microdados, caged_dimensoes):
-    
-    df = df_microdados.query("Período == '2023-08-01'")
-    grupo = df.groupby(['Período', 'município']).agg(
+def analisar_salarios(df_microdados, caged_dimensoes, dimensao):
+
+    df = df_microdados.query("Período == '2023-06-01'")
+    grupo = df.groupby(['Período', dimensao]).agg(
             Salario_total = ('salário', custom_sum),
             Salario_medio = ('salário', custom_mean)
         )
     
-    grupo = grupo.merge(caged_dimensoes['município'], left_on="município", right_on="Código")
+    df_dimensao = caged_dimensoes[dimensao].rename(columns={'Código':dimensao})
+    print(df_dimensao)
+ 
+    grupo = grupo.merge(df_dimensao, on=dimensao, how="left")
 
     # Removendo algumas colunas
-    del grupo["município"]
-    del grupo["Código"]
-    del grupo["IBGE7"]
+    # if dimensao == "município":
+    #     del grupo["município"]
+    #     del grupo["Código"]
+    #     del grupo["IBGE7"]
 
     # Ajustando nomes das colunas
     grupo = grupo.rename(columns={"Salario_total":"Montante de Salários", "Salario_medio":"Salário Médio", "Descrição":"Cidades"})
