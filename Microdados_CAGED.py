@@ -10,6 +10,10 @@ file_path_micro = "C:/Users/Alexandre/OneDrive/Documentos/R/Projeto CAGED/Files 
 file_path = "./Tabelas/"
 # mês de referência para a importação das bases
 mes_atual = 8
+# mês de referência para a importação das bases
+ano_atual = 2023
+# estrutura de data de referência
+período = f'{ano_atual}{str(mes_atual).zfill(2)}'
 # dataframe para inserir as tabelas dimensões
 dimensões = {}
 # desagregação de dimensões
@@ -59,6 +63,11 @@ def classificar_faixa_etaria(idade):
 # Função para classificar o período
 def classificar_período(data):
     return f'{data[:4]}-{data[-2:]}-01'
+
+
+# Função para ajustar valores float (principalmente o de salário)
+def ajustar_coluna_decimal(x):
+    return x.str.replace(',', '.', regex=True).astype(float)
 
 
 
@@ -155,17 +164,21 @@ def importar_histórico_caged(anos_base = ["2023"],
 
 
 # Função para importar dados do CAGED de um determinado tipo
-def importar_caged_tipo(ano, mes, tipo):
+def importar_caged_tipo(ano, mes, tipo, filtrar_mes = True):
     filename = f"CAGED{tipo}{ano}{str(mes).zfill(2)}.txt"
 
     caged = pd.read_table(os.path.join(file_path_micro, filename),
                           sep=";",
                           decimal=",").query("uf == @piaui")
-
+    
     # Realize os ajustes necessários nas colunas
     caged['competênciamov'] = caged['competênciamov'].astype(str)
     caged['faixaetária'] = caged['idade'].apply(classificar_faixa_etaria)
     caged['Período'] = caged["competênciamov"].apply(classificar_período)
+    caged["salário"] = caged["salário"].apply(ajustar_coluna_decimal)
+
+    if filtrar_mes:
+        caged = caged.query("competênciamov == @período")
 
     # Se o tipo for 'EXC', inverta o sinal de 'saldomovimentação'
     if tipo == "EXC":
@@ -178,7 +191,6 @@ def importar_caged_tipo(ano, mes, tipo):
 def importar_caged_mes_ano(ano_base=2023, mes_base=8):
     caged_base = []  # Lista para armazenar os valores no loop
     result = {}
-    período = f'{ano_base}-{str(mes_base).zfill(2)}-01'
 
     bases = ["MOV", "EXC", "FOR"]
 
@@ -195,7 +207,7 @@ def importar_caged_mes_ano(ano_base=2023, mes_base=8):
 
     # Loop para o agrupamento dos dados conforme a dimensão
     for categoria in pages[:-1]:
-        caged_with_base = pd.concat(caged_base, ignore_index=True).query("Período == @período")  # cópia do DataFrame caged
+        caged_with_base = pd.concat(caged_base, ignore_index=True)  # cópia do DataFrame caged
 
         # summarização dos dados, conforme período e a categoria 'page'
         grupo = caged_with_base.groupby(['Período', categoria]).agg(
@@ -272,7 +284,7 @@ def consolidar_caged(caged_agrupado, caged_dimensoes):
 
 def analisar_salarios(df_microdados, caged_dimensoes, dimensao):
 
-    df = df_microdados.query("Período == '2023-06-01'")
+    df = df_microdados
     grupo = df.groupby(['Período', dimensao]).agg(
             Salario_total = ('salário', custom_sum),
             Salario_medio = ('salário', custom_mean)
@@ -284,10 +296,9 @@ def analisar_salarios(df_microdados, caged_dimensoes, dimensao):
     grupo = grupo.merge(df_dimensao, on=dimensao, how="left")
 
     # Removendo algumas colunas
-    # if dimensao == "município":
-    #     del grupo["município"]
-    #     del grupo["Código"]
-    #     del grupo["IBGE7"]
+    if dimensao == "município":
+        del grupo["município"]
+        del grupo["IBGE7"]
 
     # Ajustando nomes das colunas
     grupo = grupo.rename(columns={"Salario_total":"Montante de Salários", "Salario_medio":"Salário Médio", "Descrição":"Cidades"})
@@ -297,8 +308,8 @@ def analisar_salarios(df_microdados, caged_dimensoes, dimensao):
 
 # Função para consolidar o arquivo excel.
 # Para cada página, salvamos uma categoria dos dados, resultado do dicionário da função '@consolidar_caged'
-def salvar_arquivos(list_of_df):
-    filename = './Tabelas/Caged_processado.xlsx'
+def salvar_arquivos(list_of_df, name_of_file):
+    filename = f'./Tabelas/{name_of_file}.xlsx'
 
     with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
         # 
