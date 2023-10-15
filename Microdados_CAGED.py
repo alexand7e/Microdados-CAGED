@@ -4,6 +4,19 @@ import pandas as pd
 import numpy as np
 import os
 
+"""
+NOTA: uma importante atualização foi inserida
+Considerando que as bases FOR (dados informados fora de prazo) e EXC (exclusões em competências passadas)
+alteram os meses anteriores, a importação e análise desses mesmos meses necessitam de considerar esses dados.
+Sabendo disso, a função 'importar_caged_mes_ano' agora realiza as seguintes operações: 
+
+- Verifica os meses e anos posteriores ao período analisado, a fim de ajustar os dados;
+- Verifica o ano/mes de referência e importa a base MOV da competência;
+- Importa as bases EXC e FOR apenas para os meses seguintes à competência da análise;
+
+Para tanto, incluiu-se as novas funções 'mes_analisado', 'ano_analisado' e 'importar_caged_tipo' (uma desagregação da função anterior).
+"""
+
 # caminho local para leitura os microdados
 file_path_micro = "C:/Users/Alexandre/OneDrive/Documentos/R/Projeto CAGED/Files - Microdata/"
 # caminho local para salvar os dados (e ler as dimensões)
@@ -20,20 +33,6 @@ dimensões = {}
 pages = ["município", "subclasse", "graudeinstrução", "faixaetária", "raçacor", "sexo", "salário"]
 # para teste
 piaui = 22
-
-
-"""
-NOTA: uma importante atualização foi inserida
-Considerando que as bases FOR (dados informados fora de prazo) e EXC (exclusões em competências passadas)
-alteram os meses anteriores, a importação e análise desses mesmos meses necessitam de considerar esses dados.
-Sabendo disso, a função 'importar_caged_mes_ano' agora realiza as seguintes operações: 
-
-- Verifica os meses e anos posteriores ao período analisado, a fim de ajustar os dados;
-- Verifica o ano/mes de referência e importa a base MOV da competência;
-- Importa as bases EXC e FOR apenas para os meses seguintes à competência da análise;
-
-Para tanto, incluiu-se as novas funções 'mes_analisado', 'ano_analisado' e 'importar_caged_tipo' (uma desagregação da função anterior).
-"""
 
 
 # Função para classificar a faixa etária com base na idade
