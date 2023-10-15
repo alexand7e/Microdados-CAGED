@@ -78,6 +78,11 @@ def ajustar_coluna_decimal(x):
         return np.nan
 
 
+# Função para ajustar valores float (principalmente o de salário)
+def ajustar_coluna_decimal(x):
+    return x.str.replace(',', '.', regex=True).astype(float)
+
+
 
 # Função para calcular a soma segura ~ verificando o tipo dos dados
 def custom_sum(x):
