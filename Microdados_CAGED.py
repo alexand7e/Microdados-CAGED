@@ -18,49 +18,39 @@ Para tanto, incluiu-se as novas funções 'mes_analisado', 'ano_analisado' e 'im
 """
 
 # caminho local para leitura os microdados
-file_path_micro = "C:/Users/Alexandre/OneDrive/Documentos/R/Projeto CAGED/Files - Microdata/"
+file_path_micro = r"C:\Users\usuario\Documents\Microdados"
 # caminho local para salvar os dados (e ler as dimensões)
 file_path = "./Tabelas/"
 # mês de referência para a importação das bases
-mes_atual = 8
+mes_atual = 10
 # mês de referência para a importação das bases
 ano_atual = 2023
 # estrutura de data de referência
 data_base = f'{ano_atual}{str(mes_atual).zfill(2)}'
-# dataframe para inserir as tabelas dimensões
+# dicionário para inserir as tabelas dimensões
 dimensões = {}
 # desagregação de dimensões
-pages = ["município", "subclasse", "graudeinstrução", "faixaetária", "raçacor", "sexo", "salário"]
+pages = ["município", "subclasse", "Setores", "Escolaridade", "faixaetária", "raçacor", "sexo", "valorsaláriofixo"]
 # para teste
 piaui = 22
 
 
 # Função para classificar a faixa etária com base na idade
 def classificar_faixa_etaria(idade):
+    bins = [0, 17, 24, 29, 39, 49, 64, float('inf')]
+    labels = ["Até 17 anos", "18 a 24 anos", "25 a 29 anos", "30 a 39 anos", "40 a 49 anos", "50 a 64 anos", "Mais de 65 anos"]
 
-    if pd.notna(idade) and isinstance(idade, (int, float)):
-        # verificando se o valor é numérico
+    if isinstance(idade, (int, float)):
         idade = int(idade)
-        if idade <= 17:
-            return "Até 17 anos"
-        elif 18 <= idade <= 24:
-            return "18 a 24 anos"
-        elif 25 <= idade <= 29:
-            return "25 a 29 anos"
-        elif 30 <= idade <= 39:
-            return "30 a 39 anos"
-        elif 40 <= idade <= 49:
-            return "40 a 49 anos"
-        elif 50 <= idade <= 64:
-            return "50 a 64 anos"
-        else:
-            return "Mais de 65 anos"
+        return pd.cut([idade], bins=bins, labels=labels, right=False)[0]
+    elif isinstance(idade, pd.Series):
+        return pd.cut(idade, bins=bins, labels=labels, right=False)
     else:
-        return "Não informado"
+        return 'Não Identificado'
 
 
 # Função para realizar a classificação setorial a partir das seções da CNAE 2.0 
-def classificar_grupamento(codigo):
+def classificar_grupamento(codigo: str, return_list: bool = False):
     grupos = {
         'A': 'Agricultura, pecuária, produção florestal, pesca e aquicultura',
         'B': 'Indústria geral',
@@ -84,17 +74,42 @@ def classificar_grupamento(codigo):
         'T': 'Serviços domésticos',
         'U': 'Outros serviços'
     }
-    
-    return grupos.get(codigo, 'Código não encontrado')
+    if return_list:
+        return list(set(grupos.values()))
+    else:
+        return grupos.get(codigo, 'Não Identificado')
 
+
+def classificar_escolaridade(escolaridade: str, return_list: bool = False):
+    grau = {
+    1:'Analfabeto',
+    2:'Fundamental Incompleto',
+    3:'Fundamental Incompleto',
+    4:'Fundamental Incompleto',
+    5:'Fundamental Completo',
+    6:'Médio Incompleto',
+    7:'Médio Completo',
+    8:'Superior Incompleto',
+    9:'Superior Completo',
+    10:'Superior Completo',
+    11:'Superior Completo',
+    80:'Superior Completo',
+    99:'Não Identificado'
+    }
+    if return_list:
+        return list(set(grau.values()))
+    else:
+        return grau.get(escolaridade, 'Não Identificado')
     
+#print(classificar_escolaridade("6ª a 9ª Fundamental"))
+
 # Função para classificar o período
 def classificar_período(competencia_caged):
     competencia_caged = pd.to_datetime(f'{competencia_caged[:4]}-{competencia_caged[-2:]}-01')
     return pd.Timestamp(competencia_caged).date()
 
 
-# Função para ajustar valores float (principalmente o de salário)
+# Função para ajustar valores float (principalmente o de valorsaláriofixo)
 def ajustar_coluna_decimal(x):
     if isinstance(x, str):
         x = x.replace(',', '.')
@@ -146,51 +161,60 @@ def ano_analisado(ano_base):
     return anos[i_ano:]
 
 
-# função para importar as bases (parâmetros fechados)
 def importar_dimensoes():
-    filename = ""
-    
-    # retirando o último elemento da lista ~ que não é uma dimensão
+    filename = os.path.join(file_path, "dicionário_caged.xlsx")
+    sheet_names = pd.ExcelFile(filename).sheet_names
+    print(sheet_names)
+
+    # Itere sobre sheet_names em vez de pages
     for pagename in pages[:-1]:
         if pagename == "município":
-            filename = os.path.join(file_path, "dimensao_municipios.xlsx")
+            dimensões[pagename] = pd.read_excel(os.path.join(file_path, "dimensao_municipios.xlsx"), sheet_name=pagename)
+        elif pagename == "Setores":
+            lista = classificar_grupamento("", True)  # Ajuste os argumentos conforme necessário
+            dimensões[pagename] = pd.DataFrame({'Código': lista, 'Descrição': lista})
+        elif pagename == "Escolaridade":
+            lista = classificar_escolaridade("", True)  # Ajuste os argumentos conforme necessário
+            dimensões[pagename] = pd.DataFrame({'Código': lista, 'Descrição': lista})
+            print(dimensões[pagename])
         else:
-            filename = os.path.join(file_path, "dicionário_caged.xlsx")
-            pagename = pagename
-        dimensões[pagename] = pd.read_excel(filename, sheet_name=pagename)
+            dimensões[pagename] = pd.read_excel(filename, sheet_name=pagename)
 
     return dimensões
-
 
 # Função para importar dados do CAGED de um determinado tipo
 def importar_caged_tipo(ano, mes, tipo, data_inicial = None):
     filename = f"CAGED{tipo}{ano}{str(mes).zfill(2)}.txt"
 
     caged = pd.read_table(os.path.join(file_path_micro, filename),
-                          sep=";",
-                          decimal=",").query("uf == @piaui")
-    
+                            sep=";",
+                            decimal=",",
+                            usecols = lambda x: x.strip() in ["competênciamov", "idade","graudeinstrução", "seção", *pages])
+
     # Realize os ajustes necessários nas colunas
     caged['competênciamov'] = caged['competênciamov'].astype(str)
-    caged['faixaetária'] = caged['idade'].apply(classificar_faixa_etaria)
+    caged['faixaetária'] = classificar_faixa_etaria(caged['idade'])#.apply(classificar_faixa_etaria)
     caged['Período'] = caged["competênciamov"].apply(classificar_período)
-    caged["salário"] = caged["salário"].apply(ajustar_coluna_decimal)
+    caged["valorsaláriofixo"] = ajustar_coluna_decimal(caged["valorsaláriofixo"])
     caged["Setores"] = caged["seção"].apply(classificar_grupamento)
+    caged["Escolaridade"] = caged["graudeinstrução"].apply(classificar_escolaridade)
+
 
     if not data_inicial:
-        caged = caged.query("competênciamov == @data_base")
+        caged = caged.loc[caged["competênciamov"] == data_base]
     else:
-        caged = caged.query("Período >= @data_inicial")
+        caged = caged.loc[caged["Período"] >= data_inicial]
 
     # Se a base for 'EXC', é preciso inverter o sinal de 'saldomovimentação'
     if tipo == "EXC":
         caged['saldomovimentação'] = -caged['saldomovimentação']
+        caged['valorsaláriofixo'] = np.nan
 
     return caged
 
 
 # Função para importar dados do CAGED para um mês e ano específico
-def importar_caged_mes_ano(ano_base, mes_base):
+def importar_caged_mes_ano(ano_base, mes_base, get_categoria: bool = False):
     caged_base = []  # Lista para armazenar os valores no loop
     result = {}
 
@@ -207,23 +231,23 @@ def importar_caged_mes_ano(ano_base, mes_base):
                     caged = importar_caged_tipo(ano, mes, tipo)
                     caged_base.append(caged)
 
-    # Loop para o agrupamento dos dados conforme a dimensão
-    for categoria in pages[:-1]:
-        caged_with_base = pd.concat(caged_base, ignore_index=True)  # cópia do DataFrame caged
+    if get_categoria:
+        # Loop para o agrupamento dos dados conforme a dimensão
+        for categoria in pages[:-1]:
+            caged_with_base = pd.concat(caged_base, ignore_index=True)  # cópia do DataFrame caged
 
-        # summarização dos dados, conforme período e a categoria 'page'
-        grupo = caged_with_base.groupby(['Período', categoria]).agg(
-            Desligamentos=('saldomovimentação', lambda x: (x == -1).sum()),
-            Admissões=('saldomovimentação', lambda x: (x == 1).sum()),
-            Salario_medio = ('salário', custom_mean)
-        )
+            # summarização dos dados, conforme período e a categoria 'page'
+            grupo = caged_with_base.groupby(['Período', categoria]).apply(lambda x: pd.Series({
+                'Salario_admissão': custom_mean(x["valorsaláriofixo"]),# (x.loc[x['saldomovimentação'] == 1, 'valorsaláriofixo']),
+                'Salario_desligamento': custom_mean(x.loc[x['saldomovimentação'] == -1, 'valorsaláriofixo']),
+                'Admissões': (x['saldomovimentação'] == 1).sum(),
+                'Desligamentos': (x['saldomovimentação'] == -1).sum(),
+                'Saldo': (x['saldomovimentação'] == 1).sum() - (x['saldomovimentação'] == -1).sum()
+            }))
 
-        # Variável de saldo do caged
-        grupo['Saldo'] = grupo['Admissões'] - grupo['Desligamentos']
-
-        # Certificando de criar o dicionário de data.frames
-        if categoria not in result:
-            result[categoria] = grupo  #~ 'result' é nosso dicionário de df's final agrupado
+            # Certificando de criar o dicionário de data.frames
+            if categoria not in result:
+                result[categoria] = grupo  #~ 'result' é nosso dicionário de df's final agrupado
 
     return pd.concat(caged_base), result
     
@@ -253,7 +277,9 @@ def importar_histórico_caged(ano_inicial=2023, mes_inicial=1):
         grupo = caged_with_base.groupby(['Período', categoria]).agg(
             Desligamentos=('saldomovimentação', lambda x: (x == -1).sum()),
             Admissões=('saldomovimentação', lambda x: (x == 1).sum()),
-            Salario_medio = ('salário', custom_mean)
+            Salario_admissão = ('valorsaláriofixo', lambda x: (x == 1).custom_mean()),
+            Salario_desligamento = ('valorsaláriofixo', lambda x: (x == -1).custom_mean())
+            #Salario_medio = ('valorsaláriofixo', custom_mean)
         )
 
         # Variável de saldo do caged
@@ -278,7 +304,8 @@ def consolidar_caged(caged_agrupado, caged_dimensoes):
                     'Saldo': 'sum',
                     'Admissões': 'sum',
                     'Desligamentos': 'sum',
-                    'Salario_medio': 'mean'
+                    'Salario_admissão': 'mean',
+                    'Salario_desligamento': 'mean'
                 }).reset_index()
             
         # dicionário que armazena as funções com colunas combinadas das dimensões e códigos
@@ -287,11 +314,11 @@ def consolidar_caged(caged_agrupado, caged_dimensoes):
         for categoria in pages[:-1]:
             df_ref = caged_formatado[categoria]
             df_cat_ref = caged_dimensoes[categoria]
-            df_colunas = ["Período", "Descrição", "Admissões", "Desligamentos", "Saldo", "Salario_medio"]
+            df_colunas = ["Período", "Descrição", "Admissões", "Desligamentos", "Saldo", "Salario_desligamento", "Salario_admissão"]
 
             # Combinação das tabelas e ajuste das colunas
             df_ref = df_ref.merge(df_cat_ref, left_on = categoria, right_on = 'Código')
-            df_ref = df_ref[df_colunas].rename(columns={"Descrição": categoria, "Salario_medio": "Salário médio"})
+            df_ref = df_ref[df_colunas].rename(columns={"Descrição": categoria})
 
             caged_formatado_completo[categoria] = df_ref
         
@@ -302,7 +329,18 @@ def consolidar_caged(caged_agrupado, caged_dimensoes):
 
 
 def analises_combinadas(df_microdados, caged_dimensoes, grupos = []):
-    #tr
+    """
+    Realiza análises combinadas com base em dados fornecidos.
+
+    Parameters:
+    - df_microdados (DataFrame): DataFrame principal contendo dados a serem analisados.
+    - caged_dimensoes (DataFrame): DataFrame contendo dimensões adicionais.
+    - grupos (list): Lista de colunas para realizar a análise combinada. Pode incluir 'Setores' e outras categorias.
+
+    Returns:
+    - DataFrame: DataFrame resultante da análise combinada, incluindo admissões, desligamentos, saldo e descrições das categorias.
+    """
+
     df = df_microdados
     caged_formatado = df.groupby(['Período', *grupos]).agg(
             
@@ -315,41 +353,57 @@ def analises_combinadas(df_microdados, caged_dimensoes, grupos = []):
         if categoria != "Setores":
             df_cat_ref = caged_dimensoes[categoria]
             
-            # Renomeie as colunas do DataFrame da direita (df_cat_ref)
             df_cat_ref = df_cat_ref.rename(columns={"Código": categoria})
-            
-             # Renomeie as colunas do DataFrame da direita (df_cat_ref)
             df_cat_ref = df_cat_ref.rename(columns={"Código": categoria, "Descrição": f"{categoria}_Descrição"})
-            
-            # Realize o join e mantenha apenas as colunas desejadas
             caged_formatado = caged_formatado.join(df_cat_ref.set_index(categoria)[[f"{categoria}_Descrição"]], on=categoria)
 
               
     return caged_formatado
 
 
-def analisar_salarios(df_microdados, caged_dimensoes, dimensao):
+def analisar_salarios_aprimorado(df_microdados, caged_dimensoes, dimensoes: list):
+    """
+    Analisa salários com base em dados fornecidos, incluindo novas variáveis e agrupamentos para cada dimensão.
 
-    df = df_microdados
-    grupo = df.groupby(['Período', dimensao]).agg(
-            Salario_total = ('salário', custom_sum),
-            Salario_medio = ('salário', custom_mean)
-        )
-    
-    df_dimensao = caged_dimensoes[dimensao].rename(columns={'Código':dimensao})
-    print(df_dimensao)
- 
-    grupo = grupo.merge(df_dimensao, on=dimensao, how="left")
+    Parameters:
+    - df_microdados (DataFrame): DataFrame principal contendo dados a serem analisados.
+    - caged_dimensoes (DataFrame): DataFrame contendo dimensões adicionais.
+    - dimensoes (list): Lista de nomes das dimensões para realizar a análise.
 
-    # Removendo algumas colunas
-    if dimensao == "município":
-        del grupo["município"]
-        del grupo["IBGE7"]
+    Returns:
+    - dict: Dicionário contendo DataFrames resultantes da análise de salários para cada dimensão.
+    """
+    resultados_por_dimensao = {}
 
-    # Ajustando nomes das colunas
-    grupo = grupo.rename(columns={"Salario_total":"Montante de Salários", "Salario_medio":"Salário Médio"})
+    for dimensao in dimensoes:
+        grupo = df_microdados.groupby(['Período', dimensao]).apply(lambda x: pd.Series({
+            'Salario_total': custom_sum(x['valorsaláriofixo']),
+            'Salario_medio': custom_mean(x['valorsaláriofixo']),
+            'Contagem': x['valorsaláriofixo'].count(),
+            'Salario_mediana': x['valorsaláriofixo'].median(),
+            'Salario_admissao': custom_mean(x.loc[x['saldomovimentação'] == 1, 'valorsaláriofixo']),
+            'Salario_desligamento': custom_mean(x.loc[x['saldomovimentação'] == -1, 'valorsaláriofixo'])
+        }))
 
-    return grupo.reset_index()
+        df_dimensao = caged_dimensoes[dimensao].rename(columns={'Código': dimensao})
+        grupo = grupo.merge(df_dimensao, on=dimensao, how="left")
+
+        # Removendo algumas colunas
+        if dimensao == "município":
+            del grupo["município"]
+            del grupo["IBGE7"]
+
+        # Ajustando nomes das colunas
+        grupo = grupo.rename(columns={"Salario_total": "Montante de Salários",
+                                      "Salario_medio": "Salário Médio",
+                                      "Salario_mediana": "Salário Mediana",
+                                      "Salario_admissao": "Salário Admissão",
+                                      "Salario_desligamento": "Salário Demissão",
+                                      "Contagem": "Número de Registros"})
+
+        resultados_por_dimensao[dimensao] = grupo.reset_index()
+
+    return resultados_por_dimensao
 
 
 # Função para consolidar o arquivo excel.
