@@ -419,11 +419,26 @@ def analisar_salarios_aprimorado(df_microdados, caged_dimensoes, dimensoes: list
 
 # Função para consolidar o arquivo excel.
 # Para cada página, salvamos uma categoria dos dados, resultado do dicionário da função '@consolidar_caged'
-def salvar_arquivos(dicionário_df, filename):
+def salvar_arquivos2(dicionário_df, filename):
     filename = f'./Tabelas/{filename}.xlsx'
 
     with pd.ExcelWriter(filename, engine='xlsxwriter') as arquivo:
         # 
         for page in pages:
-            dicionário_df[page].to_excel(arquivo, sheet_name=page, index=False)    
+            df = dicionário_df[page]
+            df.to_excel(arquivo, sheet_name=page, index=False)    
 
+def salvar_arquivos(dicionario_df, filename):
+    arquivo = pd.ExcelWriter(f'{filename}.xlsx')
+    for page, data in dicionario_df.items():
+        if isinstance(data, dict):
+            try:
+                # Try to create DataFrame directly
+                df = pd.DataFrame(data)
+            except ValueError:
+                # Handle the case with scalar values
+                df = pd.DataFrame([data])
+        else:
+            df = data  # if it's already a DataFrame
+        df.to_excel(arquivo, sheet_name=page, index=False)
+    arquivo.close()
