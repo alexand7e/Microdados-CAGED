@@ -58,6 +58,35 @@ def classificar_faixa_etaria(idade):
     else:
         return "Não informado"
 
+
+# Função para realizar a classificação setorial a partir das seções da CNAE 2.0 
+def classificar_grupamento(codigo):
+    grupos = {
+        'A': 'Agricultura, pecuária, produção florestal, pesca e aquicultura',
+        'B': 'Indústria geral',
+        'C': 'Indústria geral', #'Indústrias de Transformação',
+        'D': 'Indústria geral',
+        'E': 'Indústria geral',
+        'F': 'Construção',
+        'G': 'Comércio, reparação de veículos automotores e motocicletas',
+        'H': 'Serviços de transporte, armazenagem e correio',
+        'I': 'Alojamento e alimentação',
+        'J': 'Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas',
+        'K': 'Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas',
+        'L': 'Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas',
+        'M': 'Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas',
+        'N': 'Informação, comunicação e atividades financeiras, imobiliárias, profissionais e administrativas',
+        'O': 'Administração pública, defesa, seguridade social, educação, saúde humana e serviços sociais',
+        'P': 'Administração pública, defesa, seguridade social, educação, saúde humana e serviços sociais',
+        'Q': 'Administração pública, defesa, seguridade social, educação, saúde humana e serviços sociais',
+        'R': 'Outros serviços',
+        'S': 'Outros serviços',
+        'T': 'Serviços domésticos',
+        'U': 'Outros serviços'
+    }
+    
+    return grupos.get(codigo, 'Código não encontrado')
+
     
 # Função para classificar o período
 def classificar_período(competencia_caged):
@@ -76,12 +105,6 @@ def ajustar_coluna_decimal(x):
         return float(x)
     except ValueError:
         return np.nan
-
-
-# Função para ajustar valores float (principalmente o de salário)
-def ajustar_coluna_decimal(x):
-    return x.str.replace(',', '.', regex=True).astype(float)
-
 
 
 # Função para calcular a soma segura ~ verificando o tipo dos dados
@@ -152,6 +175,7 @@ def importar_caged_tipo(ano, mes, tipo, data_inicial = None):
     caged['faixaetária'] = caged['idade'].apply(classificar_faixa_etaria)
     caged['Período'] = caged["competênciamov"].apply(classificar_período)
     caged["salário"] = caged["salário"].apply(ajustar_coluna_decimal)
+    caged["Setores"] = caged["seção"].apply(classificar_grupamento)
 
     if not data_inicial:
         caged = caged.query("competênciamov == @data_base")
@@ -277,6 +301,33 @@ def consolidar_caged(caged_agrupado, caged_dimensoes):
         print(f"Erro inesperado: {e}")
 
 
+def analises_combinadas(df_microdados, caged_dimensoes, grupos = []):
+    #tr
+    df = df_microdados
+    caged_formatado = df.groupby(['Período', *grupos]).agg(
+            
+            Admissões=('saldomovimentação', lambda x: (x == 1).sum()),
+            Desligamentos=('saldomovimentação', lambda x: (x == -1).sum())
+        )
+    
+    caged_formatado["Saldo"] = caged_formatado["Admissões"] - caged_formatado["Desligamentos"]
+    for categoria in grupos:
+        if categoria != "Setores":
+            df_cat_ref = caged_dimensoes[categoria]
+            
+            # Renomeie as colunas do DataFrame da direita (df_cat_ref)
+            df_cat_ref = df_cat_ref.rename(columns={"Código": categoria})
+            
+             # Renomeie as colunas do DataFrame da direita (df_cat_ref)
+            df_cat_ref = df_cat_ref.rename(columns={"Código": categoria, "Descrição": f"{categoria}_Descrição"})
+            
+            # Realize o join e mantenha apenas as colunas desejadas
+            caged_formatado = caged_formatado.join(df_cat_ref.set_index(categoria)[[f"{categoria}_Descrição"]], on=categoria)
+
+              
+    return caged_formatado
+
+
 def analisar_salarios(df_microdados, caged_dimensoes, dimensao):
 
     df = df_microdados
@@ -303,12 +354,11 @@ def analisar_salarios(df_microdados, caged_dimensoes, dimensao):
 
 # Função para consolidar o arquivo excel.
 # Para cada página, salvamos uma categoria dos dados, resultado do dicionário da função '@consolidar_caged'
-def salvar_arquivos(list_of_df, name_of_file):
-    filename = f'./Tabelas/{name_of_file}.xlsx'
+def salvar_arquivos(dicionário_df, filename):
+    filename = f'./Tabelas/{filename}.xlsx'
 
     with pd.ExcelWriter(filename, engine='xlsxwriter') as arquivo:
         # 
         for page in pages:
-            list_of_df[page].to_excel(arquivo, sheet_name=page, index=False)
-    
+            dicionário_df[page].to_excel(arquivo, sheet_name=page, index=False)    
 
