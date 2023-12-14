@@ -18,7 +18,7 @@ Para tanto, incluiu-se as novas funções 'mes_analisado', 'ano_analisado' e 'im
 """
 
 # caminho local para leitura os microdados
-file_path_micro = r"C:\Users\usuario\Documents\Microdados"
+file_path_micro = r"C:\Users\alexa\Documents\Microdados"
 # caminho local para salvar os dados (e ler as dimensões)
 file_path = "./Tabelas/"
 # mês de referência para a importação das bases
@@ -38,7 +38,13 @@ piaui = 22
 # Função para classificar a faixa etária com base na idade
 def classificar_faixa_etaria(idade):
     bins = [0, 17, 24, 29, 39, 49, 64, float('inf')]
-    labels = ["Até 17 anos", "18 a 24 anos", "25 a 29 anos", "30 a 39 anos", "40 a 49 anos", "50 a 64 anos", "Mais de 65 anos"]
+    labels = ["Até 17 anos", 
+              "18 a 24 anos", 
+              "25 a 29 anos", 
+              "30 a 39 anos", 
+              "40 a 49 anos", 
+              "50 a 64 anos", 
+              "Mais de 65 anos"]
 
     if isinstance(idade, (int, float)):
         idade = int(idade)
@@ -115,11 +121,16 @@ def ajustar_coluna_decimal(x):
         x = x.replace(',', '.')
     elif isinstance(x, float):
         x = str(x).replace(',', '.')
-    
+
     try:
-        return float(x)
+        x_float = float(x)
     except ValueError:
         return np.nan
+
+    if x_float < 0.3 * 1320 or x_float > 150 * 1320:
+        return np.nan
+    else:
+        return x_float
 
 
 # Função para calcular a soma segura ~ verificando o tipo dos dados
@@ -188,19 +199,19 @@ def importar_caged_tipo(ano, mes, tipo, data_inicial = None):
 
     caged = pd.read_table(os.path.join(file_path_micro, filename),
                             sep=";",
-                            decimal=",",
-                            usecols = lambda x: x.strip() in ["competênciamov", "idade","graudeinstrução", "seção", *pages])
+                            decimal=",").query("uf == 22")
+                            #usecols = lambda x: x.strip() in ["competênciamov", "idade","graudeinstrução", "seção", *pages])
 
     # Realize os ajustes necessários nas colunas
     caged['competênciamov'] = caged['competênciamov'].astype(str)
     caged['faixaetária'] = classificar_faixa_etaria(caged['idade'])#.apply(classificar_faixa_etaria)
     caged['Período'] = caged["competênciamov"].apply(classificar_período)
-    caged["valorsaláriofixo"] = ajustar_coluna_decimal(caged["valorsaláriofixo"])
+    caged["valorsaláriofixo"] = caged["valorsaláriofixo"].apply(ajustar_coluna_decimal)
     caged["Setores"] = caged["seção"].apply(classificar_grupamento)
     caged["Escolaridade"] = caged["graudeinstrução"].apply(classificar_escolaridade)
 
 
-    if not data_inicial:
+    if data_inicial is None:
         caged = caged.loc[caged["competênciamov"] == data_base]
     else:
         caged = caged.loc[caged["Período"] >= data_inicial]
@@ -238,7 +249,7 @@ def importar_caged_mes_ano(ano_base, mes_base, get_categoria: bool = False):
 
             # summarização dos dados, conforme período e a categoria 'page'
             grupo = caged_with_base.groupby(['Período', categoria]).apply(lambda x: pd.Series({
-                'Salario_admissão': custom_mean(x["valorsaláriofixo"]),# (x.loc[x['saldomovimentação'] == 1, 'valorsaláriofixo']),
+                'Salario_admissão': custom_mean(x.loc[x['saldomovimentação'] == 1, 'valorsaláriofixo']), #(x["valorsaláriofixo"])
                 'Salario_desligamento': custom_mean(x.loc[x['saldomovimentação'] == -1, 'valorsaláriofixo']),
                 'Admissões': (x['saldomovimentação'] == 1).sum(),
                 'Desligamentos': (x['saldomovimentação'] == -1).sum(),
