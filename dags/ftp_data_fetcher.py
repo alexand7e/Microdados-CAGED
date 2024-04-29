@@ -30,7 +30,7 @@ class FTPDownloader:
         self.remote_directory = "pdet/microdados/NOVO CAGED"
         self.file_extension = file_extension
         self.local_directory = local_directory if local_directory else tempfile.gettempdir()
-        atexit.register(self.cleanup)
+        # atexit.register(self.cleanup)
 
     @debug
     def download_file_callback(self, filename):
@@ -99,14 +99,14 @@ class FTPDownloader:
             os.remove(file_path)
             print(f'Arquivo excluído: {file_path}')
 
-    @debug
-    def cleanup(self):
-        """Remove o diretório local e todos os seus arquivos."""
-        try:
-            shutil.rmtree(self.local_directory)
-            print(f"Diretório {self.local_directory} removido com sucesso.")
-        except Exception as e:
-            print(f"Erro ao remover o diretório {self.local_directory}: {e}")
+    # @debug
+    # def cleanup(self):
+    #     """Remove o diretório local e todos os seus arquivos."""
+    #     try:
+    #         shutil.rmtree(self.local_directory)
+    #         print(f"Diretório {self.local_directory} removido com sucesso.")
+    #     except Exception as e:
+    #         print(f"Erro ao remover o diretório {self.local_directory}: {e}")
 
 class SevenZipExtractor:
     def __init__(self, target_directory):
