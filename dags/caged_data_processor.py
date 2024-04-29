@@ -290,7 +290,19 @@ class CagedProcessor:
                 caged_formatado_completo[categoria] = df_ref
 
             if self.inserir_tabela_processada:
-                caged_formatado_completo[("Histórico - Estoque", "Histórico - Saldo", "Histórico - Variação (PI/NE/BR)", "Territórios - Mês", "Territórios - Ano")] = self.processar_tabela(self.dimensões["município"])
+                resultado_processamento = self.processar_tabela(self.dimensões["município"])
+                df_historico_estoque = resultado_processamento[0]
+                caged_formatado_completo["Histórico - Estoque"] = df_historico_estoque
+                df_historico_saldo = resultado_processamento[1]
+                caged_formatado_completo["Histórico - Saldo"] = df_historico_saldo
+                df_historico_variacao = resultado_processamento[2]
+                caged_formatado_completo["Histórico - Variação"] = df_historico_variacao
+                df_territorios_mes = resultado_processamento[3]
+                caged_formatado_completo["Territórios - Mês"] = df_territorios_mes
+
+                df_territorios_ano = resultado_processamento[4]
+                caged_formatado_completo["Territórios - Ano"] = df_territorios_ano
+
             return caged_formatado_completo
             
         except Exception as e:
@@ -298,13 +310,12 @@ class CagedProcessor:
             return {}
 
 
-    def analises_combinadas(self, df_microdados, grupos = []):
+    def analises_combinadas(self, df_microdados, grupos=[]):
         """
         Realiza análises combinadas com base em dados fornecidos.
 
         Parameters:
         - df_microdados (DataFrame): DataFrame principal contendo dados a serem analisados.
-        - caged_dimensoes (DataFrame): DataFrame contendo dimensões adicionais.
         - grupos (list): Lista de colunas para realizar a análise combinada. Pode incluir 'Setores' e outras categorias.
 
         Returns:
@@ -313,11 +324,10 @@ class CagedProcessor:
 
         df = df_microdados
         caged_formatado = df.groupby(['Período', *grupos]).agg(
-                
                 Admissões=('saldomovimentação', lambda x: (x == 1).sum()),
                 Desligamentos=('saldomovimentação', lambda x: (x == -1).sum())
-            )
-        
+            ).reset_index()  # Reset the index here to keep the group columns as regular columns
+
         caged_formatado["Saldo"] = caged_formatado["Admissões"] - caged_formatado["Desligamentos"]
         for categoria in grupos:
             if categoria != "Setores":
@@ -329,7 +339,6 @@ class CagedProcessor:
 
                 caged_formatado = caged_formatado.join(df_cat_ref.set_index(categoria)[[f"{categoria}_Descrição"]], on=categoria)
 
-                
         return caged_formatado
 
 

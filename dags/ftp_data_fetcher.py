@@ -42,26 +42,31 @@ class FTPDownloader:
 
     @debug
     def download_specific_file(self, target_file_name, is_dict=False):
-        """Baixa um arquivo específico usando as configurações da classe, ajustando para 'is_dict'."""
+        """Downloads a specific file using class settings, adjusting for 'is_dict'."""
         if is_dict:
-            directory_path = self.remote_directory  # Caminho específico para o arquivo de dicionário
+            directory_path = self.remote_directory  # Specific path for the dictionary file
             target_file_name = "Layout Não-identificado Novo Caged Movimentação.xlsx"
         else:
             directory_path = f"{self.remote_directory}/{self.date_directory}".strip('/')
 
         local_filename = os.path.join(self.local_directory, target_file_name)
 
+        # Check if the file already exists
+        if os.path.exists(local_filename):
+            print(f"File already exists: {local_filename}. Skipping download.")
+            return
+
         try:
             with FTP(self.ftp_host) as ftp:
                 ftp.encoding = 'iso-8859-1'
                 ftp.login(self.ftp_user, self.ftp_pass)
                 ftp.cwd(directory_path)
-                print(f"Tentando baixar: {directory_path}/{target_file_name}")
+                print(f"Attempting to download: {directory_path}/{target_file_name}")
                 with open(local_filename, 'wb') as local_file:
                     ftp.retrbinary(f'RETR {target_file_name}', local_file.write)
-                print(f"Arquivo baixado com sucesso: {local_filename}")
+                print(f"File successfully downloaded: {local_filename}")
         except Exception as e:
-            print(f"Erro ao baixar o arquivo: {e}")
+            print(f"Error downloading file: {e}")
 
     @debug
     def list_files(self) -> list:

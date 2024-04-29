@@ -30,14 +30,17 @@ def main():
 
     caged_formatado_completo = caged.consolidar_caged(caged_agrupamentos)
 
-    caged_formatado_completo["salarios"] = caged.analisar_salarios_aprimorado(caged_microdados_full, ["Setores"])
-    caged_formatado_completo["Setor - Município"] = caged.get_maior_setor_por_municipio(caged_microdados_full)
-    
+    try:
+        caged_formatado_completo["salarios"] = caged.analisar_salarios_aprimorado(caged_microdados_full, ["Setores"])
+        caged_formatado_completo["Setor - Município"] = caged.get_maior_setor_por_municipio(caged_microdados_full)
+    except Exception as e:
+        print (f'Erro {e}' )
+
     # Save files
     caged.salvar_arquivos(saving_dir=paths.get('gold'), dicionario_df=caged_formatado_completo, suffix_file="CAGED")
     
-    df_detalhamento = caged.analises_combinadas(caged_microdados_full, caged.dimensões(), grupos=["Setores"])
-    df_detalhamento.to_excel(os.path.join(local_path, 'data', 'Setores.xlsx'))
+    df_detalhamento = caged.analises_combinadas(caged_microdados_full, grupos=["Setores"])
+    df_detalhamento.to_excel(os.path.join(paths.get('gold'), 'Setores.xlsx'))
 
 if __name__ == "__main__":
     main()
