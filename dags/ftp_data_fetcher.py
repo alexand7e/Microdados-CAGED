@@ -2,8 +2,7 @@ from ftplib import FTP
 import tempfile
 import py7zr
 import os
-import shutil
-import atexit
+
 
 import functools
 
@@ -51,10 +50,10 @@ class FTPDownloader:
 
         local_filename = os.path.join(self.local_directory, target_file_name)
 
-        # Check if the file already exists
-        if os.path.exists(local_filename):
-            print(f"File already exists: {local_filename}. Skipping download.")
-            return
+        # # Check if the file already exists
+        # if os.path.exists(local_filename):
+        #     print(f"File already exists: {local_filename}. Skipping download.")
+        #     return
 
         try:
             with FTP(self.ftp_host) as ftp:

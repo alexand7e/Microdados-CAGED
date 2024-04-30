@@ -65,8 +65,6 @@ class CagedProcessor:
 
         if download_microdata:
             self.baixar_microdados_e_dicionario()
-        if insert_processed_table:
-            self.baixar_caged_processado()
 
         self.dimensões = self.importar_dicionario()
         
@@ -93,7 +91,7 @@ class CagedProcessor:
             print(f"Ocorreu um erro: {e}")
 
 
-    def baixar_caged_processado(self) -> None:
+    def obter_caged_processado(self) -> None:
         """A documentar"""
         try:
             caged_processed_downloader = Processed_caged(
@@ -103,8 +101,8 @@ class CagedProcessor:
             )
 
             caged_processed_downloader.download_caged_file()
-            self.caged_p_municipios, self.caged_p_estados = caged_processed_downloader.get_formatted_table()
-            print('Download concluído!')
+            caged_p_municipios, caged_p_estados = caged_processed_downloader.get_formatted_table()
+            return caged_p_municipios, caged_p_estados
         except Exception as e:
             print(f"Ocorreu um erro: {e}")
 
@@ -291,17 +289,11 @@ class CagedProcessor:
 
             if self.inserir_tabela_processada:
                 resultado_processamento = self.processar_tabela(self.dimensões["município"])
-                df_historico_estoque = resultado_processamento[0]
-                caged_formatado_completo["Histórico - Estoque"] = df_historico_estoque
-                df_historico_saldo = resultado_processamento[1]
-                caged_formatado_completo["Histórico - Saldo"] = df_historico_saldo
-                df_historico_variacao = resultado_processamento[2]
-                caged_formatado_completo["Histórico - Variação"] = df_historico_variacao
-                df_territorios_mes = resultado_processamento[3]
-                caged_formatado_completo["Territórios - Mês"] = df_territorios_mes
-
-                df_territorios_ano = resultado_processamento[4]
-                caged_formatado_completo["Territórios - Ano"] = df_territorios_ano
+                caged_formatado_completo["Histórico - Estoque"] = resultado_processamento[0]
+                caged_formatado_completo["Histórico - Saldo"] = resultado_processamento[1]
+                caged_formatado_completo["Histórico - Variação"] = resultado_processamento[2]
+                caged_formatado_completo["Territórios - Mês"] = resultado_processamento[3]
+                caged_formatado_completo["Territórios - Ano"] = resultado_processamento[4]
 
             return caged_formatado_completo
             
@@ -401,7 +393,7 @@ class CagedProcessor:
                     df = pd.DataFrame([data])
             else:
                 df = data 
-            df.to_excel(arquivo, sheet_name=page, index=False)
+            df.to_excel(arquivo, sheet_name=page)
         arquivo.close()
 
 
@@ -409,28 +401,25 @@ class CagedProcessor:
         return self.categorias
 
 
-    def processar_tabela(self, caged_dimensao_municipios: dict) -> tuple:
-        df_est_pc = self.caged_p_estados.copy()
-        df_mun_pc = self.caged_p_municipios.copy()
-        estado_de_referencia = self.utils.classificar_ufs(self.uf_ref)
-        regiao_de_referencia = self.utils.classificar_regiao(self.uf_ref)
-        mes_por_extenso = self.utils.classificar_mes(self.mes_atual)
+    def processar_tabela(self, caged_dimensao_municipios: dict):
+        df_est_pc, df_mun_pc = self.obter_caged_processado()
+        estado_referencia = self.utils.classificar_ufs(self.uf_ref)
+        regiao_referencia = self.utils.classificar_regiao(self.uf_ref)
+        mes_referencia = self.utils.classificar_mes(self.mes_atual)
 
-        # Correct use of logical operators and ensure all conditions are correctly applied
-        df_hist_sal = df_est_pc[(df_est_pc["Região"] == estado_de_referencia) & (df_mun_pc["Variável"] == "Saldos")]
-        df_hist_estoq = df_est_pc[(df_est_pc["Região"] == estado_de_referencia) & (df_mun_pc["Variável"] == "Estoque")]
+        df_hist_sal = df_est_pc[(df_est_pc["Região"] == "Piauí") & (df_mun_pc["Variável"] == "Saldos")]
+        df_hist_estoq = df_est_pc[(df_est_pc["Região"] == "Piauí") & (df_mun_pc["Variável"] == "Estoque")]
 
-        # Ensure correct use of conditions and operations
-        df_hist_var = df_est_pc[(df_est_pc["Região"].isin(["Brasil", regiao_de_referencia, estado_de_referencia])) & (df_est_pc["Variável"] == "Variação Relativa (%)")].pivot(index=['Data', 'Variável'], columns='Região', values='Valor')
+        df_hist_var = df_est_pc[(df_est_pc["Região"].isin(["Brasil", regiao_referencia, estado_referencia])) & (df_est_pc["Variável"] == "Variação Relativa (%)")].pivot(index=['Data', 'Variável'], columns='Região', values='Valor')
 
-        # Group by operations need to be completed
-        df_hist_est = df_mun_pc[df_mun_pc["Região"].astype(str).str.startswith(str(22))]
-        df_hist_est['Região'] = df_hist_est['Região'].astype(str)
+        df_hist_est = df_mun_pc[df_mun_pc["Região"].astype(str).str.startswith(str(self.uf_ref))]
+        df_hist_est.loc[:, 'Região'] = df_hist_est['Região'].astype(str)
+
         caged_dimensao_municipios['Código'] = caged_dimensao_municipios['Código'].astype(str)
         df_hist_est = df_hist_est.merge(caged_dimensao_municipios, left_on="Região", right_on="Código")
         
         df_hist_est['Data'] = df_hist_est['Data'].astype(str)
-        df_pi_terr_month = df_hist_est[df_hist_est['Data'].str.contains(f"{mes_por_extenso}/{self.ano_atual}")].pivot_table(
+        df_pi_terr_month = df_hist_est[df_hist_est['Data'].str.contains(f"{"Março"}/{self.ano_atual}")].pivot_table(
             index='Território (PI)',
             columns='Variável',
             values='Valor',
@@ -446,8 +435,7 @@ class CagedProcessor:
             aggfunc='sum'
         ) 
 
-        # df_mun_pc = df_mun_pc.merge(caged_dimensoes["Município"], left_on="Região", right_on='Código')
-        return (df_hist_estoq, df_hist_sal, df_hist_var, df_pi_terr_month, df_pi_terr_ann)
+        return ( df_hist_estoq, df_hist_sal, df_hist_var, df_pi_terr_month, df_pi_terr_ann)
     
     def get_maior_setor_por_municipio(self, caged_microdados_full): # uso interno para fins do relatório
         df_setor_por_muni = self.analises_combinadas(caged_microdados_full, grupos=["município", "subclasse"])

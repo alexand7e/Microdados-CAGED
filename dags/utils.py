@@ -13,7 +13,7 @@ class CagedUtils:
         month_ = {
             1: "janeiro",
             2: "fevereiro",
-            3: "março",
+            3: "marco",
             4: "abril",
             5: "maio",
             6: "junho",

@@ -65,7 +65,7 @@ class Processed_caged:
             dict_tb[page] = df_processed
 
         return dict_tb[pages[0]], dict_tb[pages[1]]
-    
+
         
     def format_caged_table(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -79,25 +79,35 @@ class Processed_caged:
         """
         # Para a primeira coluna
         df_ajustada = df.copy()
-        df_ajustada.insert(loc=df_ajustada.shape[1] - 4, column='Adjust1', value=["-"] * df_ajustada.shape[0])
-        df_ajustada.insert(loc=df_ajustada.shape[1] - 0, column='Adjust2', value=["-"] * df_ajustada.shape[0])
+        df_ajustada.insert(loc=df_ajustada.shape[1] - 4, column='Adjust1', value=[" "] * df_ajustada.shape[0])
+        df_ajustada.insert(loc=df_ajustada.shape[1] - 0, column='Adjust2', value=[" "] * df_ajustada.shape[0])
 
         variables = df_ajustada.iloc[1, 1:].values 
         dates = df_ajustada.iloc[0, 1::5].values  
         transformed_data_corrected = []
 
         # Iterando sobre cada região/UF
-        for index, row in df_ajustada.iloc[2:].iterrows():  
-            regiao_uf = row[0]  
+        # for index, row in df_ajustada.iloc[2:].iterrows():  
+        #     regiao_uf = row[0]  
+        #     for date_index, date in enumerate(dates):
+        #         variables_subset = variables[date_index*5:(date_index+1)*5]  
+        #         for var_index, variable in enumerate(variables_subset):
+        #             valor_index = 1 + date_index*5 + var_index  
+        #             if valor_index < len(row):  
+        #                 valor = row[valor_index]  
+        #                 if pd.notnull(valor):  
+        #                     transformed_data_corrected.append([regiao_uf, date, variable, valor])
+        for index, row in df_ajustada.iloc[2:].iterrows():
+            regiao_uf = row.iloc[0]
             for date_index, date in enumerate(dates):
-                variables_subset = variables[date_index*5:(date_index+1)*5]  
+                variables_subset = variables[date_index*5:(date_index+1)*5]
                 for var_index, variable in enumerate(variables_subset):
-                    valor_index = 1 + date_index*5 + var_index  
-                    if valor_index < len(row):  
-                        valor = row[valor_index]  
-                        if pd.notnull(valor):  
+                    valor_index = 1 + date_index*5 + var_index
+                    if valor_index < len(row):
+                        valor = row.iloc[valor_index]
+                        if pd.notnull(valor):
                             transformed_data_corrected.append([regiao_uf, date, variable, valor])
-
+                            
         df_transformed = pd.DataFrame(transformed_data_corrected, columns=['Região', 'Data', 'Variável', 'Valor'])
         return df_transformed
 
