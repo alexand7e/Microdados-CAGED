@@ -19,7 +19,6 @@ def debug(func):
         return value
     return wrapper_debug
 
-
 class FTPDownloader:
     def __init__(self, local_directory: str = None, file_extension: str = None, caged_year: int = None, caged_month: int = None):
         self.ftp_host = 'ftp.mtps.gov.br'

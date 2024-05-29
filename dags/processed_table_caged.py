@@ -1,38 +1,52 @@
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup as bs
-
+import os
+import zipfile
 
 class Processed_caged:
-    def __init__(self, output_dit: str, mes_referencia: str, ano_referencia: int) -> None:
+    def __init__(self, output_dir: str, mes_referencia: str, ano_referencia: int) -> None:
         self.mes = mes_referencia
         self.ano = ano_referencia
-        self.file_path = f'{output_dit}/caged_processada_{self.mes}_{self.ano}.xlsx'
+        self.output_dir = output_dir
+        self.file_path = f'{self.output_dir}/caged_processada_{self.mes}_{self.ano}.xlsx'
         self.url = f'https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/estatisticas-trabalho/novo-caged/novo-caged-{self.ano}/{self.mes}'
         
-        
     def download_caged_file(self) -> None:
-        def download(url):
-        
-            response = requests.get(url)
-            if response.status_code == 200:
-                with open(self.file_path, 'wb') as file:
-                    file.write(response.content)
-                success = True
-            else:
-                success = False
-                self.file_path = None
-
-            success, self.file_path
-
         response = requests.get(self.url)
-        soup = bs(response.text, "html.parser")
-
-        link = soup.find('a', string='Tabelas.xls')
-        href = link['href'] if link else None
+        if response.status_code == 200:
+            soup = bs(response.text, "html.parser")
+            link = soup.find('a', string='Tabelas.xls')
+            if link:
+                href = link['href']
+                print(f"Requisitando {href}...")
+                self._download_and_unzip(href)
+            else:
+                print("Link para download não encontrado.")
+        else:
+            print("Falha ao acessar a página do CAGED.")
     
-        print(f"Requisitando {href}...")
-        download(href)
+    def _download_and_unzip(self, url):
+        response = requests.get(url)
+        if response.status_code == 200:
+            temp_path = os.path.join(self.output_dir, 'temp.zip')
+            with open(temp_path, 'wb') as file:
+                file.write(response.content)
+            
+            if zipfile.is_zipfile(temp_path):
+                with zipfile.ZipFile(temp_path, 'r') as zip_ref:
+                    zip_ref.extractall(self.output_dir)
+                os.remove(temp_path)
+                extracted_files = zip_ref.namelist()
+                if extracted_files:
+                    original_file = os.path.join(self.output_dir, extracted_files[0])
+                    os.rename(original_file, self.file_path)
+                print("Arquivo ZIP descompactado e renomeado com sucesso.")
+            else:
+                os.rename(temp_path, self.file_path)
+                print("Arquivo XLSX baixado e renomeado com sucesso.")
+        else:
+            print("Falha ao baixar o arquivo.")
     
 
     def get_formatted_table(self, adjusted_caged: bool = True) -> tuple:    
