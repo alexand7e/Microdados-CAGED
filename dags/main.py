@@ -20,7 +20,7 @@ def main():
     # Create instance of Microdata_caged
     caged = CagedProcessor(microdata_directory=paths.get('bronze'),
                             processed_files_directory=paths.get('silver'),
-                            current_month=4, 
+                            current_month=5, 
                             current_year=2024, 
                             download_microdata=True, 
                             insert_processed_table=True)

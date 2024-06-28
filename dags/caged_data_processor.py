@@ -419,7 +419,7 @@ class CagedProcessor:
         df_hist_est = df_hist_est.merge(caged_dimensao_municipios, left_on="Região", right_on="Código")
         
         df_hist_est['Data'] = df_hist_est['Data'].astype(str)
-        df_pi_terr_month = df_hist_est[df_hist_est['Data'].str.contains(f"{'Abril'}/{self.ano_atual}")].pivot_table(
+        df_pi_terr_month = df_hist_est[df_hist_est['Data'].str.contains(f"{self.utils.classificar_mes(self.mes_atual)}/{self.ano_atual}")].pivot_table(
             index='Território (PI)',
             columns='Variável',
             values='Valor',

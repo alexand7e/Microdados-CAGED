@@ -3,6 +3,8 @@ import requests
 from bs4 import BeautifulSoup as bs
 import os
 import zipfile
+import shutil
+
 
 class Processed_caged:
     def __init__(self, output_dir: str, mes_referencia: str, ano_referencia: int) -> None:
@@ -36,14 +38,14 @@ class Processed_caged:
             if zipfile.is_zipfile(temp_path):
                 with zipfile.ZipFile(temp_path, 'r') as zip_ref:
                     zip_ref.extractall(self.output_dir)
+                    extracted_files = zip_ref.namelist()
                 os.remove(temp_path)
-                extracted_files = zip_ref.namelist()
                 if extracted_files:
                     original_file = os.path.join(self.output_dir, extracted_files[0])
-                    os.rename(original_file, self.file_path)
+                    shutil.move(original_file, self.file_path)
                 print("Arquivo ZIP descompactado e renomeado com sucesso.")
             else:
-                os.rename(temp_path, self.file_path)
+                shutil.move(temp_path, self.file_path)
                 print("Arquivo XLSX baixado e renomeado com sucesso.")
         else:
             print("Falha ao baixar o arquivo.")
